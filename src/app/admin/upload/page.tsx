@@ -103,9 +103,15 @@ export default function CertificateUploadPage() {
           nationalId = await extractTextOCR(page, worker);
         }
 
-        const subPdf = await PDFDocument.create();
-        const [copiedPage] = await subPdf.copyPages(pdfLibDoc, [i - 1]);
-        subPdf.addPage(copiedPage);
+        // Preserve all document-level objects (forms, fonts, images) by loading the original and deleting other pages
+        const subPdf = await PDFDocument.load(pdfBytes);
+        const pageCount = subPdf.getPageCount();
+        // Remove from end to start to avoid index shifting
+        for (let k = pageCount - 1; k >= 0; k--) {
+          if (k !== i - 1) {
+            subPdf.removePage(k);
+          }
+        }
         const subPdfBytes = await subPdf.save();
 
         const fileName = `${schoolId}/${crypto.randomUUID()}.pdf`;
