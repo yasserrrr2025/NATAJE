@@ -28,8 +28,20 @@ export default function CertificateUploadPage() {
   const extractTextFast = async (page: any): Promise<string | null> => {
     try {
       const textContent = await page.getTextContent();
-      const text = textContent.items.map((item: any) => item.str).join(" ");
-      const match = text.match(/\b\d{10}(?:-\d+)?\b/);
+      let text = textContent.items.map((item: any) => item.str).join(" ");
+      
+      // Convert Arabic-Indic numerals to standard English digits
+      text = text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => String(d.charCodeAt(0) - 1632));
+      
+      // 1. Try finding a clean 10-digit number
+      let match = text.match(/\b\d{10}\b/);
+      
+      // 2. Try removing all spaces (sometimes PDF items split digits like '1 0 4 5...')
+      if (!match) {
+        const noSpaceText = text.replace(/\s+/g, '');
+        match = noSpaceText.match(/\d{10}/);
+      }
+      
       return match ? match[0] : null;
     } catch {
       return null;
@@ -166,7 +178,7 @@ export default function CertificateUploadPage() {
         return { status, studentId };
       };
 
-      const batchSize = 3;
+      const batchSize = 10;
       let processed = 0;
 
       for (let i = 1; i <= totalPages; i += batchSize) {
