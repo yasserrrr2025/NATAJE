@@ -31,7 +31,7 @@ export default function CertificateUploadPage() {
       let text = textContent.items.map((item: any) => item.str).join(" ");
       
       // Convert Arabic-Indic numerals to standard English digits
-      text = text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => String(d.charCodeAt(0) - 1632));
+      text = text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, (d: string) => String(d.charCodeAt(0) - 1632));
       
       // 1. Try finding a clean 10-digit number
       let match = text.match(/\b\d{10}\b/);
