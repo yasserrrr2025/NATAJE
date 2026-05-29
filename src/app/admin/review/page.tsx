@@ -143,19 +143,29 @@ export default function ReviewPage() {
               <div key={item.id} className="glass-card animate-fade-in" style={{ display: 'flex', gap: '0', borderRight: '6px solid #f59e0b', padding: 0, overflow: 'hidden', animationDelay: `${index * 0.1}s` }}>
                 
                 {/* Right Side: PDF Preview */}
-                <div style={{ width: '350px', background: 'var(--secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-                  <div style={{ background: 'var(--background)', padding: '2rem', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow)', width: '100%', height: '280px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.5rem' }}>
-                    <FileText size={64} style={{ color: 'var(--secondary-foreground)', opacity: 0.5 }} />
-                    <p style={{ fontWeight: 700, color: 'var(--secondary-foreground)', textAlign: 'center' }}>الشهادة المجهولة</p>
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={() => window.open(item.file_url || '#', '_blank')}
-                      style={{ width: '100%' }}
-                      disabled={!item.file_url}
-                    >
-                      <Eye size={18} /> معاينة المستند (PDF)
-                    </button>
+                <div style={{ width: '350px', background: 'var(--secondary)', display: 'flex', flexDirection: 'column', padding: '1.5rem' }}>
+                  <div style={{ background: 'var(--background)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow)', width: '100%', height: '350px', overflow: 'hidden', position: 'relative' }}>
+                    {item.file_url ? (
+                      <iframe 
+                        src={`${item.file_url}#toolbar=0&navpanes=0&view=FitH`} 
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        title="Document Preview"
+                      />
+                    ) : (
+                      <div className="flex-center" style={{ height: '100%', flexDirection: 'column', gap: '1rem' }}>
+                        <FileText size={48} style={{ color: 'var(--muted)' }} />
+                        <p className="text-muted">لا يوجد مستند</p>
+                      </div>
+                    )}
                   </div>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => window.open(item.file_url || '#', '_blank')}
+                    style={{ width: '100%', marginTop: '1rem', background: 'transparent', border: '1px solid var(--card-border)' }}
+                    disabled={!item.file_url}
+                  >
+                    <Eye size={18} /> فتح في علامة تبويب جديدة
+                  </button>
                 </div>
 
                 {/* Left Side: Data and Action */}
