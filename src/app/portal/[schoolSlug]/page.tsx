@@ -163,7 +163,7 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
         
         {/* Floating School Identity */}
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <div className="float-slow" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', background: 'rgba(30, 41, 59, 0.4)', padding: '2.5rem 4rem', borderRadius: '2.5rem', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)', backdropFilter: 'blur(20px)', marginBottom: '2.5rem' }}>
+          <div className="float-slow school-badge" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '2.5rem', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)', backdropFilter: 'blur(20px)', marginBottom: '2.5rem' }}>
             {school.logo_url ? (
               <div style={{ background: 'white', padding: '1rem', borderRadius: '50%', boxShadow: '0 0 30px rgba(255,255,255,0.1)' }}>
                 <img src={school.logo_url} alt={school.name} style={{ height: 75, objectFit: 'contain' }} />
@@ -173,36 +173,34 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
                 <Building size={40} />
               </div>
             )}
-            <h2 style={{ fontSize: '2rem', fontWeight: 900, margin: 0, color: '#f8fafc', letterSpacing: '-0.5px' }}>{school.name}</h2>
+            <h2 className="school-name" style={{ fontWeight: 900, margin: 0, color: '#f8fafc', letterSpacing: '-0.5px' }}>{school.name}</h2>
           </div>
           
-          <h1 style={{ marginBottom: '1rem', fontSize: '4rem', fontWeight: 900, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, #f8fafc, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>بوابة الاستعلام الذكية</h1>
-          <p style={{ fontSize: '1.25rem', maxWidth: 550, margin: '0 auto', lineHeight: 1.6, color: '#cbd5e1' }}>
+          <h1 className="portal-title" style={{ marginBottom: '1rem', fontWeight: 900, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, #f8fafc, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>بوابة الاستعلام</h1>
+          <p className="portal-subtitle" style={{ maxWidth: 550, margin: '0 auto', lineHeight: 1.6, color: '#cbd5e1' }}>
             للحصول على شهاداتك المدرسية المعتمدة فوراً، أدخل رقم الهوية الوطنية الخاص بك في الأسفل.
           </p>
         </div>
 
         {/* Premium Search Box */}
-        <div style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(30px)', padding: '3.5rem', borderRadius: '2.5rem', boxShadow: '0 30px 60px -15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
+        <div className="search-box-container" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(30px)', borderRadius: '2.5rem', boxShadow: '0 30px 60px -15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, transparent, #38bdf8, transparent)' }} />
           
-          <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', position: 'relative', zIndex: 2 }}>
+          <form onSubmit={handleSearch} className="search-form" style={{ display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 2 }}>
             <div>
               <label htmlFor="nationalId" style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '1.25rem', display: 'block', color: '#f8fafc' }}>رقم الهوية الوطنية</label>
               <div style={{ position: 'relative' }} className="search-input-wrapper">
                 <input 
                   id="nationalId"
                   type="text" 
+                  className="portal-input"
                   placeholder="أدخل رقم الهوية للبحث..." 
                   value={nationalId}
                   onChange={(e) => setNationalId(e.target.value.replace(/[^0-9-]/g, ''))}
                   maxLength={15}
                   style={{ 
                     width: '100%',
-                    padding: '1.5rem 2rem', 
-                    paddingRight: '4.5rem', 
-                    fontSize: '1.75rem', 
-                    letterSpacing: '5px',
+                    paddingRight: '4rem', 
                     borderRadius: '1.5rem',
                     textAlign: 'center',
                     fontWeight: 900,
@@ -222,8 +220,8 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
                     e.target.style.boxShadow = 'inset 0 2px 10px rgba(0,0,0,0.5)';
                   }}
                 />
-                <div style={{ position: 'absolute', right: '1.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(56,189,248,0.1)', padding: '0.75rem', borderRadius: '1rem' }}>
-                  <Search size={28} style={{ color: '#38bdf8' }} />
+                <div className="search-icon-container" style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(56,189,248,0.1)', padding: '0.75rem', borderRadius: '1rem' }}>
+                  <Search className="search-icon" style={{ color: '#38bdf8' }} />
                 </div>
               </div>
             </div>
@@ -234,8 +232,6 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
               disabled={loading || nationalId.length < 10}
               style={{ 
                 width: '100%', 
-                padding: '1.5rem', 
-                fontSize: '1.5rem', 
                 fontWeight: 900,
                 borderRadius: '1.5rem',
                 background: 'linear-gradient(135deg, #2563eb, #38bdf8)',
@@ -248,14 +244,13 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '1rem',
                 position: 'relative',
                 overflow: 'hidden'
               }}
             >
               {loading ? <Loader2 size={32} className="animate-spin" /> : (
                 <>
-                  <ShieldCheck size={28} />
+                  <ShieldCheck className="btn-icon" />
                   عرض الشهادة المعتمدة
                 </>
               )}
@@ -296,10 +291,10 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
                   {result.certificates && result.certificates.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                       {result.certificates.map((cert, index) => (
-                        <div key={cert.id || index} className="cert-card flex-between" style={{ padding: '2rem', background: 'rgba(15, 23, 42, 0.6)', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.08)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', cursor: 'default' }}>
-                          <div className="flex-center" style={{ gap: '1.5rem' }}>
-                            <div style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.05))', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid rgba(239,68,68,0.2)' }}>
-                              <FileText size={36} style={{ color: '#ef4444' }} />
+                        <div key={cert.id || index} className="cert-card cert-card-content" style={{ padding: '2rem', background: 'rgba(15, 23, 42, 0.6)', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.08)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', cursor: 'default' }}>
+                          <div className="flex-center cert-card-info" style={{ gap: '1.5rem' }}>
+                            <div className="cert-icon-box" style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.05))', borderRadius: '1.25rem', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <FileText className="cert-icon" style={{ color: '#ef4444' }} />
                             </div>
                             <div>
                               <h4 style={{ fontWeight: 900, fontSize: '1.35rem', marginBottom: '0.5rem', color: '#f8fafc' }}>{cert.term ? cert.term : `شهادة ${cert.academic_year || 'مدرسية'}`}</h4>
@@ -432,6 +427,132 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
           0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
           70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
           100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Responsive Styles */
+        .school-badge {
+          padding: 2.5rem 4rem;
+        }
+        .school-name {
+          font-size: 2rem;
+        }
+        .portal-title {
+          font-size: 4rem;
+        }
+        .portal-subtitle {
+          font-size: 1.25rem;
+        }
+        .search-box-container {
+          padding: 3.5rem;
+        }
+        .search-form {
+          gap: 2.5rem;
+        }
+        .portal-input {
+          padding: 1.5rem 2rem;
+          font-size: 1.75rem;
+          letter-spacing: 5px;
+        }
+        .search-icon {
+          width: 28px;
+          height: 28px;
+        }
+        .premium-btn {
+          padding: 1.5rem;
+          font-size: 1.5rem;
+          gap: 1rem;
+        }
+        .btn-icon {
+          width: 28px;
+          height: 28px;
+        }
+        .cert-card-content {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .cert-icon-box {
+          padding: 1.5rem;
+        }
+        .cert-icon {
+          width: 36px;
+          height: 36px;
+        }
+
+        @media (max-width: 640px) {
+          .school-badge {
+            padding: 1.5rem 2rem;
+            margin-bottom: 1.5rem;
+          }
+          .school-name {
+            font-size: 1.5rem;
+          }
+          .portal-title {
+            font-size: 2.5rem;
+          }
+          .portal-subtitle {
+            font-size: 1rem;
+            padding: 0 1rem;
+          }
+          .search-box-container {
+            padding: 2rem 1.5rem;
+            border-radius: 1.5rem;
+          }
+          .search-form {
+            gap: 1.5rem;
+          }
+          .portal-input {
+            padding: 1rem 1rem;
+            padding-right: 3.5rem !important;
+            font-size: 1.25rem !important;
+            letter-spacing: 2px !important;
+            border-radius: 1rem !important;
+          }
+          .portal-input::placeholder {
+            font-size: 0.95rem;
+            letter-spacing: normal;
+          }
+          .search-icon-container {
+            right: 0.5rem !important;
+            padding: 0.5rem !important;
+          }
+          .search-icon {
+            width: 20px;
+            height: 20px;
+          }
+          .premium-btn {
+            padding: 1rem !important;
+            font-size: 1.15rem !important;
+            border-radius: 1rem !important;
+            gap: 0.5rem !important;
+          }
+          .btn-icon {
+            width: 22px;
+            height: 22px;
+          }
+          .cert-card-content {
+            flex-direction: column;
+            gap: 1.5rem;
+            text-align: center;
+            padding: 1.5rem !important;
+          }
+          .cert-card-info {
+            flex-direction: column;
+            gap: 1rem !important;
+          }
+          .cert-icon-box {
+            padding: 1rem !important;
+          }
+          .cert-icon {
+            width: 28px;
+            height: 28px;
+          }
+          .download-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 1rem !important;
+            font-size: 1rem !important;
+          }
         }
       `}</style>
     </div>
