@@ -75,11 +75,13 @@ export default function CertificateUploadPage() {
 
       const { PDFDocument } = await import('pdf-lib');
       const pdfBytes = await file.arrayBuffer();
-      const pdfLibDoc = await PDFDocument.load(pdfBytes);
+      // Use a copy for pdf-lib to avoid detachment issues
+      const pdfLibDoc = await PDFDocument.load(pdfBytes.slice(0));
 
       const pdfjsLib = await import('pdfjs-dist');
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-      const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+      // Use a copy for pdf.js because it often detaches the buffer in its workers
+      const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
       const totalPages = pdfJsDoc.numPages;
 
       let matchedCount = 0;
@@ -104,7 +106,8 @@ export default function CertificateUploadPage() {
         }
 
         // Preserve all document-level objects (forms, fonts, images) by loading the original and deleting other pages
-        const subPdf = await PDFDocument.load(pdfBytes);
+        // Create a fresh copy of the array buffer for each iteration to avoid the "Cannot perform Construct on a detached ArrayBuffer" error
+        const subPdf = await PDFDocument.load(pdfBytes.slice(0));
         const pageCount = subPdf.getPageCount();
         // Remove from end to start to avoid index shifting
         for (let k = pageCount - 1; k >= 0; k--) {
