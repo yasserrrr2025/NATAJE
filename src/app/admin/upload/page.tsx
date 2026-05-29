@@ -50,12 +50,14 @@ export default function CertificateUploadPage() {
 
   const extractTextOCR = async (page: any, worker: any): Promise<string | null> => {
     try {
-      const viewport = page.getViewport({ scale: 1.5 });
+      // Use a smaller scale to speed up OCR dramatically
+      const viewport = page.getViewport({ scale: 1.0 });
       const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) return null;
       
-      canvas.height = viewport.height;
+      // Only render the top 45% of the page where the National ID is usually located
+      canvas.height = viewport.height * 0.45;
       canvas.width = viewport.width;
       
       await page.render({ canvasContext: context, viewport: viewport }).promise;
@@ -103,6 +105,9 @@ export default function CertificateUploadPage() {
           const Tesseract = (await import('tesseract.js')).default;
           setStatusText("جاري تهيئة محرك الرؤية (OCR) لأول مرة...");
           ocrWorker = await Tesseract.createWorker('eng');
+          await ocrWorker.setParameters({
+            tessedit_char_whitelist: '0123456789',
+          });
         }
         return ocrWorker;
       };
