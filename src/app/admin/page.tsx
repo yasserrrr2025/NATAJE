@@ -50,11 +50,15 @@ export default function AdminDashboard() {
           .eq('status', 'MANUAL_REVIEW_NEEDED');
 
         // Fetch Analytics (Viewed vs Unviewed)
-        const { data: certs } = await supabase
+        const { data: certs, error: certsError } = await supabase
           .from('certificates')
           .select('id, viewed_at, student_id, students(name, national_id, grade_level, classroom)')
           .eq('school_id', schoolId)
           .eq('status', 'MATCHED');
+
+        if (certsError) {
+          console.error("Error fetching certs analytics:", certsError);
+        }
 
         let viewedCount = 0;
         let unviewedArray: any[] = [];

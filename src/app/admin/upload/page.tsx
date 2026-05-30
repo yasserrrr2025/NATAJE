@@ -130,9 +130,9 @@ export default function CertificateUploadPage() {
 
       let rank_class = null;
       let rank_grade = null;
-      const classMatch = text.match(/ترتيب\s*الفصل\s*[:\s]*(\d+)/i);
+      const classMatch = text.match(/(?:ترتيب\s*الفصل|Sort\s*By\s*Class)\s*[:\s]*(\d+)/i);
       if (classMatch) rank_class = parseInt(classMatch[1], 10);
-      const gradeMatch = text.match(/ترتيب\s*المرحلة\s*[:\s]*(\d+)/i);
+      const gradeMatch = text.match(/(?:ترتيب\s*المرحلة|Sort\s*By\s*Grade|الترتيب\s*على\s*الصف)\s*[:\s]*(\d+)/i);
       if (gradeMatch) rank_grade = parseInt(gradeMatch[1], 10);
 
       if (identity) return { identity, name, nationality, rank_class, rank_grade };
