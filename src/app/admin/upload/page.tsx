@@ -219,7 +219,7 @@ export default function CertificateUploadPage() {
       const processPage = async (i: number) => {
         const page = await pdfJsDoc.getPage(i);
         
-        let extractedData = await extractTextFast(page);
+        const extractedData = await extractTextFast(page);
         let identity = extractedData?.identity;
 
         if (!identity) {

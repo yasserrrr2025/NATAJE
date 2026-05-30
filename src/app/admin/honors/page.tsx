@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Award, Trophy, Medal, Star } from "lucide-react";
+import { Loader2, Award, Trophy, Star } from "lucide-react";
 
 export default function HonorsPage() {
   const [loading, setLoading] = useState(true);

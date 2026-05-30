@@ -67,6 +67,7 @@ create table public.certificates (
   ocr_confidence numeric,
   academic_year text,
   term text,
+  viewed_at timestamp with time zone,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
