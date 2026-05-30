@@ -25,6 +25,21 @@ export default function CertificateUploadPage() {
     }
   };
 
+  const isValidSaudiID = (id: string): boolean => {
+    if (!id || id.length !== 10) return false;
+    if (!id.startsWith('1') && !id.startsWith('2')) return false;
+    let sum = 0;
+    for (let i = 0; i < 10; i++) {
+      let digit = parseInt(id[i]);
+      if (i % 2 === 0) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+      sum += digit;
+    }
+    return sum % 10 === 0;
+  };
+
   const extractTextFast = async (page: any): Promise<string | null> => {
     try {
       const textContent = await page.getTextContent();
@@ -36,10 +51,22 @@ export default function CertificateUploadPage() {
       // 1. Try finding a clean 10-digit number
       let match = text.match(/\b\d{10}\b/);
       
-      // 2. Try removing all spaces (sometimes PDF items split digits like '1 0 4 5...')
+      // 2. Try removing all spaces 
       if (!match) {
         const noSpaceText = text.replace(/\s+/g, '');
-        match = noSpaceText.match(/\d{10}/);
+        match = noSpaceText.match(/\b(1|2)\d{9}\b/);
+      }
+      
+      // 3. Ultimate Fallback: Sliding window with Luhn checksum!
+      // This handles cases where pdfjs scrambles the text with other numbers.
+      if (!match) {
+        const digitsOnly = text.replace(/[^\d]/g, '');
+        for (let k = 0; k <= digitsOnly.length - 10; k++) {
+          const sub = digitsOnly.substring(k, k + 10);
+          if (isValidSaudiID(sub)) {
+            return sub;
+          }
+        }
       }
       
       return match ? match[0] : null;
@@ -183,11 +210,11 @@ export default function CertificateUploadPage() {
         return { status, studentId };
       };
 
-      const batchSize = 10;
+      const batchSize = 1;
       let processed = 0;
 
       for (let i = 1; i <= totalPages; i += batchSize) {
-        setStatusText(`جاري تحليل وتدقيق الدفعة (${i} إلى ${Math.min(i + batchSize - 1, totalPages)}) من ${totalPages}...`);
+        setStatusText(`جاري تحليل وتدقيق الصفحة ${i} من ${totalPages}...`);
         
         const promises = [];
         for (let j = 0; j < batchSize && (i + j) <= totalPages; j++) {
