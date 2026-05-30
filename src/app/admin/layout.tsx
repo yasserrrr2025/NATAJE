@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Users, FileUp, CheckCircle, Settings, AlertTriangle, CreditCard, Loader2 } from "lucide-react";
+import { LayoutDashboard, Users, FileUp, FileText, CheckCircle, Settings, AlertTriangle, CreditCard, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -99,6 +99,10 @@ export default function AdminLayout({
           <Link href="/admin/upload" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius)', transition: 'background 0.2s', fontWeight: 600 }} className="hover-bg">
             <FileUp size={20} />
             معالجة الشهادات PDF
+          </Link>
+          <Link href="/admin/certificates" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius)', transition: 'background 0.2s', fontWeight: 600 }} className="hover-bg">
+            <FileText size={20} />
+            إدارة الشهادات
           </Link>
           <Link href="/admin/review" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius)', transition: 'background 0.2s', fontWeight: 600 }} className="hover-bg">
             <CheckCircle size={20} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileUp, FileText, Play, CheckCircle, AlertCircle, Loader2, Sparkles, AlertTriangle } from "lucide-react";
+import { FileUp, FileText, Play, CheckCircle, AlertCircle, Loader2, Sparkles, AlertTriangle, Users } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { getCurrentSchoolId } from "@/lib/school-session";
 
@@ -11,6 +11,7 @@ export default function CertificateUploadPage() {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const [results, setResults] = useState<{total: number, matched: number, unmatched: number} | null>(null);
+  const [missingStudents, setMissingStudents] = useState<{national_id: string, name: string, nationality: string}[]>([]);
   const [error, setError] = useState("");
 
   const [academicYear, setAcademicYear] = useState("1446/1447");
@@ -20,6 +21,7 @@ export default function CertificateUploadPage() {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setResults(null);
+      setMissingStudents([]);
       setProgress(0);
       setError("");
     }
@@ -66,21 +68,74 @@ export default function CertificateUploadPage() {
     return null;
   };
 
-  const extractTextFast = async (page: any): Promise<string | null> => {
+  const nationalityToArabic = (value = '') => {
+    const v = value.trim().toLowerCase();
+    const map: Record<string, string> = {
+        saudi: 'السعودية', yemeni: 'اليمن', sudanese: 'السودان', egyptian: 'مصر',
+        syrian: 'سوريا', jordanian: 'الأردن', pakistani: 'باكستان', indian: 'الهند',
+        bangladeshi: 'بنجلاديش', somali: 'الصومال', eritrean: 'إريتريا'
+    };
+    return map[v] || value;
+  };
+
+  const extractNationality = (text: string) => {
+    let m = text.match(/Nationality\s*([A-Za-z]+)/i);
+    if (m) return nationalityToArabic(m[1]);
+    m = text.match(/الجنسية\s*([\u0600-\u06FF]{2,})/);
+    if (m) return m[1].trim();
+    const pairs: [RegExp, string][] = [
+        [/\bSaudi\b/i, 'السعودية'], [/\bYemeni\b/i, 'اليمن'], [/\bSudanese\b/i, 'السودان'],
+        [/\bEgyptian\b/i, 'مصر'], [/\bSyrian\b/i, 'سوريا'], [/\bJordanian\b/i, 'الأردن']
+    ];
+    for (const [pattern, value] of pairs) if (pattern.test(text)) return value;
+    return '';
+  };
+
+  const isArabicText = (s = '') => /[\u0600-\u06FF]/.test(s);
+  const getRowItems = (items: any[], targetY: number, tolerance = 4) => items.filter(it => Math.abs(it.y - targetY) <= tolerance);
+  const joinArabicByX = (items: any[]) => items.sort((a, b) => b.x - a.x).map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
+  const normalizeArabicName = (name = '') => name.replace(/\s+/g, ' ').replace(/[\u0640]/g, '').replace(/[|]/g, ' ').trim();
+
+  const extractArabicNameFromItems = (items: any[]) => {
+    const normalizedItems = items.map(it => ({
+        str: (it.str || '').trim(),
+        x: it.transform[4],
+        y: Math.round(it.transform[5] * 10) / 10
+    })).filter(it => it.str);
+
+    const englishLabel = normalizedItems.find(it => /Student'?s\s*Name/i.test(it.str));
+    const arabicLabel = normalizedItems.find(it => /اسم\s*الطالب/.test(it.str));
+    const label = arabicLabel || englishLabel;
+    if (!label) return '';
+
+    const row = getRowItems(normalizedItems, label.y, 3.5);
+    const arabicParts = row
+        .filter(it => isArabicText(it.str))
+        .filter(it => !/اسم\s*الطالب|الفصل|الجنسية|تاريخ\s*الميلاد|رقم\s*الهوية|رقم\s*جواز\s*السفر/.test(it.str));
+
+    const name = normalizeArabicName(joinArabicByX(arabicParts));
+    if (name && name.split(' ').length >= 3) return name;
+    return '';
+  };
+
+  const extractTextFast = async (page: any): Promise<{identity: string | null, name: string | null, nationality: string | null} | null> => {
     try {
       const textContent = await page.getTextContent();
       const rawText = textContent.items.map((item: any) => item.str).join(' ');
       const text = rawText.replace(/[\u200E\u200F\u202A-\u202E]/g, ' ').replace(/\s+/g, ' ').trim();
       
       const identity = extractIdentityFromText(text);
-      if (identity) return identity;
+      const name = extractArabicNameFromItems(textContent.items) || text.match(/Student'?s\s*Name\s*:?\s*([^\n:]{4,140}?)(?:\s+Class\s*:|\s+Date\s+of\s+Birth|\s+Nationality|\s+Identity\s+No)/i)?.[1]?.trim() || '';
+      const nationality = extractNationality(text);
+
+      if (identity) return { identity, name, nationality };
       
       // Ultimate Fallback: Sliding window with Luhn checksum!
       const digitsOnly = text.replace(/[^\d]/g, '');
       for (let k = 0; k <= digitsOnly.length - 10; k++) {
         const sub = digitsOnly.substring(k, k + 10);
         if (isValidSaudiID(sub)) {
-          return sub;
+          return { identity: sub, name, nationality };
         }
       }
       
@@ -157,7 +212,8 @@ export default function CertificateUploadPage() {
       const processPage = async (i: number) => {
         const page = await pdfJsDoc.getPage(i);
         
-        let identity = await extractTextFast(page);
+        let extractedData = await extractTextFast(page);
+        let identity = extractedData?.identity;
 
         if (!identity) {
           const worker = await getOcrWorker();
@@ -224,11 +280,20 @@ export default function CertificateUploadPage() {
           console.error("Database insert error:", insertError);
         }
 
-        return { status, studentId };
+        return { 
+          status, 
+          studentId, 
+          missingData: (status === 'MANUAL_REVIEW_NEEDED' && identity) ? {
+            national_id: identity,
+            name: extractedData?.name || '',
+            nationality: extractedData?.nationality || ''
+          } : null
+        };
       };
 
       const batchSize = 10;
       let processed = 0;
+      const discoveredMissing: {national_id: string, name: string, nationality: string}[] = [];
 
       for (let i = 1; i <= totalPages; i += batchSize) {
         setStatusText(`جاري التحليل والرفع (دفعة ${i} إلى ${Math.min(i + batchSize - 1, totalPages)}) من ${totalPages}...`);
@@ -242,12 +307,19 @@ export default function CertificateUploadPage() {
         
         batchResults.forEach(res => {
           if (res.status === 'MATCHED') matchedCount++;
-          else unmatchedCount++;
+          else {
+            unmatchedCount++;
+            if (res.missingData && !discoveredMissing.find(m => m.national_id === res.missingData?.national_id)) {
+              discoveredMissing.push(res.missingData);
+            }
+          }
         });
 
         processed += promises.length;
         setProgress(Math.round(5 + ((processed / totalPages) * 90)));
       }
+
+      setMissingStudents(discoveredMissing);
 
       setStatusText("جاري حفظ النتائج وتحديث قواعد البيانات...");
       setProgress(98);
@@ -264,6 +336,32 @@ export default function CertificateUploadPage() {
         await ocrWorker.terminate();
       }
       setTimeout(() => setProcessing(false), 500);
+    }
+  };
+
+  const handleAddMissingStudents = async () => {
+    setProcessing(true);
+    try {
+      const schoolId = getCurrentSchoolId();
+      const studentsToInsert = missingStudents.map(m => ({
+        school_id: schoolId,
+        national_id: m.national_id,
+        name: m.name || `طالب (${m.national_id})`,
+        nationality: m.nationality || '',
+        grade_level: "غير محدد",
+        classroom: "غير محدد"
+      }));
+
+      const { error } = await supabase.from('students').upsert(studentsToInsert, { onConflict: 'school_id,national_id' });
+      if (error) throw error;
+      
+      alert(`تم إضافة ${missingStudents.length} طالب جديد بنجاح! سيتم ربط شهاداتهم تلقائياً في صفحة المراجعة.`);
+      setMissingStudents([]);
+    } catch (err: any) {
+      console.error(err);
+      alert("حدث خطأ أثناء إضافة الطلاب: " + err.message);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -394,22 +492,50 @@ export default function CertificateUploadPage() {
       </div>
 
       {results && (
-        <div className="grid-3 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-          <div className="glass-card flex-center" style={{ flexDirection: 'column', gap: '0.75rem', textAlign: 'center', padding: '2rem', transform: 'translateY(0)' }}>
-            <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--foreground)' }}>{results.total}</span>
-            <span className="text-muted" style={{ fontWeight: 600, fontSize: '1.1rem' }}>إجمالي الصفحات المكتشفة</span>
+        <>
+          <div className="grid-3 animate-fade-in" style={{ animationDelay: '0.2s', marginBottom: '2rem' }}>
+            <div className="glass-card flex-center" style={{ flexDirection: 'column', gap: '0.75rem', textAlign: 'center', padding: '2rem', transform: 'translateY(0)' }}>
+              <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--foreground)' }}>{results.total}</span>
+              <span className="text-muted" style={{ fontWeight: 600, fontSize: '1.1rem' }}>إجمالي الصفحات المكتشفة</span>
+            </div>
+            <div className="glass-card flex-center" style={{ flexDirection: 'column', gap: '0.75rem', textAlign: 'center', padding: '2rem', borderBottom: '6px solid var(--accent)', background: 'linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.05))' }}>
+              <CheckCircle size={32} style={{ color: 'var(--accent)', marginBottom: '-0.5rem' }} />
+              <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent)' }}>{results.matched}</span>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent)' }}>تمت المطابقة آلياً</span>
+            </div>
+            <div className="glass-card flex-center" style={{ flexDirection: 'column', gap: '0.75rem', textAlign: 'center', padding: '2rem', borderBottom: '6px solid var(--destructive)', background: 'linear-gradient(to bottom, transparent, rgba(239, 68, 68, 0.05))' }}>
+              <AlertCircle size={32} style={{ color: 'var(--destructive)', marginBottom: '-0.5rem' }} />
+              <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--destructive)' }}>{results.unmatched}</span>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--destructive)' }}>بحاجة للمراجعة اليدوية</span>
+            </div>
           </div>
-          <div className="glass-card flex-center" style={{ flexDirection: 'column', gap: '0.75rem', textAlign: 'center', padding: '2rem', borderBottom: '6px solid var(--accent)', background: 'linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.05))' }}>
-            <CheckCircle size={32} style={{ color: 'var(--accent)', marginBottom: '-0.5rem' }} />
-            <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent)' }}>{results.matched}</span>
-            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent)' }}>تمت المطابقة آلياً</span>
-          </div>
-          <div className="glass-card flex-center" style={{ flexDirection: 'column', gap: '0.75rem', textAlign: 'center', padding: '2rem', borderBottom: '6px solid var(--destructive)', background: 'linear-gradient(to bottom, transparent, rgba(239, 68, 68, 0.05))' }}>
-            <AlertCircle size={32} style={{ color: 'var(--destructive)', marginBottom: '-0.5rem' }} />
-            <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--destructive)' }}>{results.unmatched}</span>
-            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--destructive)' }}>بحاجة للمراجعة اليدوية</span>
-          </div>
-        </div>
+
+          {missingStudents.length > 0 && (
+            <div className="glass-card animate-fade-in" style={{ padding: '2rem', background: 'var(--secondary)' }}>
+              <div className="flex items-start gap-4 mb-4">
+                <div style={{ padding: '1rem', background: 'var(--accent)', borderRadius: '50%', color: 'white' }}>
+                  <Users size={32} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem' }}>اكتشاف طلاب جدد</h3>
+                  <p className="text-muted" style={{ lineHeight: 1.6 }}>
+                    وجدنا <strong style={{ color: 'var(--foreground)' }}>{missingStudents.length} طلاب</strong> في الشهادات غير مسجلين في قاعدة البيانات. 
+                    هل ترغب في إضافتهم تلقائياً ليتم ربط شهاداتهم بهم؟
+                  </p>
+                </div>
+              </div>
+              <button 
+                className="btn btn-primary w-full" 
+                onClick={handleAddMissingStudents}
+                disabled={processing}
+                style={{ marginTop: '1rem' }}
+              >
+                {processing ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
+                إضافة {missingStudents.length} طلاب إلى قاعدة البيانات
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
