@@ -33,25 +33,49 @@ export default function RegisterSchoolPage() {
     setError("");
 
     try {
-      // 1. Insert School
-      const { data: newSchool, error: schoolError } = await supabase
-        .from('schools')
-        .insert({
-          name: formData.name,
-          ministerial_number: formData.ministerial_number,
-          contact_email: formData.contact_email,
-          password: formData.password,
-          slug: formData.slug || formData.ministerial_number, // fallback to ministerial num
-          logo_url: "https://upload.wikimedia.org/wikipedia/ar/1/17/Saudi_Ministry_of_Education_Logo_2025.png"
-        })
-        .select()
-        .single();
+      const requestedSlug = formData.slug || formData.ministerial_number;
+      const { data, error: schoolError } = await supabase.rpc("create_school_with_password", {
+        input_name: formData.name,
+        input_ministerial_number: formData.ministerial_number,
+        input_contact_email: formData.contact_email,
+        input_password: formData.password,
+        input_slug: requestedSlug,
+        input_logo_url: "https://upload.wikimedia.org/wikipedia/ar/1/17/Saudi_Ministry_of_Education_Logo_2025.png",
+      });
 
       if (schoolError) {
         if (schoolError.code === '23505') {
           throw new Error("عفواً، الرابط المخصص أو الرقم الوزاري مسجل مسبقاً لمدرسة أخرى.");
         }
         throw schoolError;
+      }
+
+      const newSchool = Array.isArray(data) ? data[0] : null;
+      if (!newSchool) {
+        throw new Error("لم يتم إنشاء المدرسة. حاول مرة أخرى.");
+      }
+
+      const authResult = await supabase.auth.signUp({
+        email: formData.contact_email.trim().toLowerCase(),
+        password: formData.password,
+        options: {
+          data: {
+            school_id: newSchool.id,
+            role: "ADMIN",
+          },
+        },
+      });
+
+      if (!authResult.error && authResult.data.user) {
+        await supabase.rpc("link_current_auth_user_to_school", {
+          input_school_id: newSchool.id,
+          input_profile_name: formData.name,
+        });
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("school_id", newSchool.id);
+        localStorage.setItem("school_name", formData.name);
       }
 
       setSchoolSlug(newSchool.slug);

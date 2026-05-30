@@ -28,15 +28,7 @@ export default function LoginPage() {
         return;
       }
 
-      // Check against schools table for email and password
-      const { data: school, error: loginError } = await supabase
-        .from('schools')
-        .select('*')
-        .eq('contact_email', email)
-        .eq('password', password)
-        .maybeSingle();
-
-      if (loginError) throw loginError;
+      const school = await signInSchool(email, password);
 
       if (!school) {
         throw new Error("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
@@ -68,14 +60,16 @@ export default function LoginPage() {
       throw new Error("أدخل البريد الإلكتروني والرقم الوزاري لاستعادة الوصول.");
     }
 
-    const { data: school, error: schoolError } = await supabase
-      .from('schools')
-      .select('id, name, is_active')
-      .ilike('contact_email', cleanEmail)
-      .eq('ministerial_number', cleanMinisterialNumber)
-      .maybeSingle();
+    const nextPassword = generateTemporaryPassword();
+    const { data, error: resetError } = await supabase.rpc("request_school_password_reset", {
+      input_email: cleanEmail,
+      input_ministerial_number: cleanMinisterialNumber,
+      input_new_password: nextPassword,
+    });
 
-    if (schoolError) throw schoolError;
+    if (resetError) throw resetError;
+
+    const school = Array.isArray(data) ? data[0] : null;
 
     if (!school) {
       throw new Error("لم نجد مدرسة بهذه البيانات. تأكد من البريد الإلكتروني والرقم الوزاري.");
@@ -84,14 +78,6 @@ export default function LoginPage() {
     if (school.is_active === false) {
       throw new Error("حساب المدرسة موقوف حالياً. يرجى التواصل مع الإدارة المركزية.");
     }
-
-    const nextPassword = generateTemporaryPassword();
-    const { error: updateError } = await supabase
-      .from('schools')
-      .update({ password: nextPassword })
-      .eq('id', school.id);
-
-    if (updateError) throw updateError;
 
     setPassword("");
     setTemporaryPassword(nextPassword);
@@ -310,6 +296,59 @@ export default function LoginPage() {
       `}</style>
     </div>
   );
+}
+
+type LoginSchool = {
+  id: string;
+  name: string;
+  is_active?: boolean | null;
+  is_portal_active?: boolean | null;
+  subscription_end_date?: string | null;
+  subscription_plan?: string | null;
+  contact_email?: string | null;
+};
+
+async function signInSchool(email: string, password: string): Promise<LoginSchool | null> {
+  const cleanEmail = email.trim().toLowerCase();
+
+  const authResult = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
+  });
+
+  if (!authResult.error && authResult.data.user) {
+    const userId = authResult.data.user.id;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("school_id, schools(*)")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const profileSchool = normalizeJoinedSchool((profile as any)?.schools);
+    if (profileSchool) return profileSchool;
+
+    const { data: linkedSchool } = await supabase
+      .from("schools")
+      .select("*")
+      .or(`auth_user_id.eq.${userId},contact_email.eq.${cleanEmail}`)
+      .maybeSingle();
+
+    if (linkedSchool) return linkedSchool as LoginSchool;
+  }
+
+  const { data, error } = await supabase.rpc("verify_school_login", {
+    input_email: cleanEmail,
+    input_password: password,
+  });
+
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0 ? (data[0] as LoginSchool) : null;
+}
+
+function normalizeJoinedSchool(school: unknown): LoginSchool | null {
+  if (!school) return null;
+  return (Array.isArray(school) ? school[0] : school) as LoginSchool;
 }
 
 function generateTemporaryPassword() {

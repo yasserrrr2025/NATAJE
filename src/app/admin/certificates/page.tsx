@@ -61,6 +61,7 @@ export default function CertificatesManagementPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [viewFilter, setViewFilter] = useState("ALL");
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [reprocessingFor, setReprocessingFor] = useState<string | null>(null);
 
   useEffect(() => {
     loadCertificates();
@@ -202,6 +203,56 @@ export default function CertificatesManagementPage() {
     }
   };
 
+  const handleReprocess = async (cert: CertificateRow) => {
+    if (!cert.file_url) {
+      alert("لا يوجد ملف مرتبط بهذه الشهادة لإعادة معالجته.");
+      return;
+    }
+
+    setReprocessingFor(cert.id);
+    try {
+      const schoolId = getCurrentSchoolId();
+      if (!schoolId) throw new Error("لم يتم العثور على جلسة المدرسة.");
+
+      const identity = await extractIdentityFromPdfUrl(cert.file_url);
+      let studentId: string | null = null;
+      let status: CertificateRow["status"] = identity ? "MANUAL_REVIEW_NEEDED" : "UNMATCHED";
+
+      if (identity) {
+        const { data: student, error: studentError } = await supabase
+          .from("students")
+          .select("id")
+          .eq("school_id", schoolId)
+          .eq("national_id", identity)
+          .maybeSingle();
+
+        if (studentError) throw studentError;
+        if (student) {
+          studentId = student.id;
+          status = "MATCHED";
+        }
+      }
+
+      const { error } = await supabase
+        .from("certificates")
+        .update({
+          extracted_national_id: identity,
+          student_id: studentId,
+          status,
+          ocr_confidence: identity ? 0.92 : 0.2,
+        })
+        .eq("id", cert.id);
+
+      if (error) throw error;
+      await loadCertificates();
+    } catch (err) {
+      console.error("Reprocess error:", err);
+      alert("تعذرت إعادة معالجة الشهادة. قد يكون الملف غير قابل للقراءة من المتصفح.");
+    } finally {
+      setReprocessingFor(null);
+    }
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <section style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
@@ -326,6 +377,9 @@ export default function CertificatesManagementPage() {
                             disabled={uploadingFor === cert.id}
                           />
                         </label>
+                        <button onClick={() => handleReprocess(cert)} disabled={reprocessingFor === cert.id} style={iconButton("#f59e0b")} title="إعادة معالجة الشهادة">
+                          {reprocessingFor === cert.id ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+                        </button>
                         <button onClick={() => handleDelete(cert.id, cert.file_url)} style={iconButton("#ef4444")} title="حذف الشهادة">
                           <Trash2 size={16} />
                         </button>
@@ -422,6 +476,73 @@ function Metric({ icon, label, value, color }: { icon: React.ReactNode; label: s
       <strong style={{ display: "block", marginTop: "0.55rem", color: "var(--foreground)", fontSize: "1.75rem", fontWeight: 900 }}>{value}</strong>
     </div>
   );
+}
+
+async function extractIdentityFromPdfUrl(fileUrl: string) {
+  const response = await fetch(fileUrl);
+  if (!response.ok) throw new Error("Unable to fetch certificate PDF.");
+
+  const pdfBytes = await response.arrayBuffer();
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  const pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
+  const page = await pdf.getPage(1);
+  const textContent = await page.getTextContent();
+  const text = textContent.items
+    .map((item: any) => item.str || "")
+    .join(" ")
+    .replace(/[\u200E\u200F\u202A-\u202E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return extractIdentityFromText(text);
+}
+
+function extractIdentityFromText(text: string) {
+  const compactValue = (value: string) => value.replace(/[^\p{L}\p{N}]/gu, "").trim();
+  const patterns = [
+    /Identity\s*No\.?\s*([A-Z0-9/_\-\s]{6,})/i,
+    /Passport\s*No\.?\s*([A-Z0-9/_\-\s]{6,})/i,
+    /رقم\s*الهوية\s*([A-Z0-9/_\-\s]{6,})/i,
+    /رقم\s*جواز\s*السفر\s*([A-Z0-9/_\-\s]{6,})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const value = compactValue(match[1]);
+      if (value) return value;
+    }
+  }
+
+  const candidates = text.match(/[A-Z]?\d[\d/_\-\s]{5,}[A-Z0-9]?/gi) || [];
+  for (const candidate of candidates) {
+    const value = compactValue(candidate);
+    if (/^(?:\d{8,20}|[A-Z]\d{6,20})$/i.test(value)) return value;
+  }
+
+  const digitsOnly = text.replace(/[^\d]/g, "");
+  for (let index = 0; index <= digitsOnly.length - 10; index += 1) {
+    const possibleId = digitsOnly.slice(index, index + 10);
+    if (isValidSaudiId(possibleId)) return possibleId;
+  }
+
+  return null;
+}
+
+function isValidSaudiId(id: string) {
+  if (!id || id.length !== 10) return false;
+  if (!id.startsWith("1") && !id.startsWith("2")) return false;
+  let sum = 0;
+  for (let index = 0; index < 10; index += 1) {
+    let digit = Number.parseInt(id[index], 10);
+    if (index % 2 === 0) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+  }
+  return sum % 10 === 0;
 }
 
 function normalizeStudent(students: CertificateRow["students"]) {

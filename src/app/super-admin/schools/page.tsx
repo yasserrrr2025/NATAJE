@@ -60,6 +60,7 @@ export default function ManageSchoolsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [sessionPasswords, setSessionPasswords] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchData();
@@ -114,7 +115,7 @@ export default function ManageSchoolsPage() {
       slug: school.slug || "",
       ministerial_number: school.ministerial_number || "",
       contact_email: school.contact_email || "",
-      password: school.password || "",
+      password: "",
       whatsapp_phone: school.whatsapp_phone || "",
       subscription_plan: school.subscription_plan || "TRIAL",
       subscription_end_date: school.subscription_end_date ? school.subscription_end_date.split("T")[0] : "",
@@ -134,7 +135,6 @@ export default function ManageSchoolsPage() {
       slug: normalizeSlug(formData.slug || formData.ministerial_number),
       ministerial_number: formData.ministerial_number.trim(),
       contact_email: formData.contact_email.trim() || null,
-      password: formData.password.trim() || null,
       whatsapp_phone: normalizePhone(formData.whatsapp_phone),
       subscription_plan: formData.subscription_plan,
       subscription_end_date: formData.subscription_end_date
@@ -146,13 +146,35 @@ export default function ManageSchoolsPage() {
       logo_url: "https://upload.wikimedia.org/wikipedia/ar/1/17/Saudi_Ministry_of_Education_Logo_2025.png",
     };
 
-    const { error } = modalMode === "create"
-      ? await supabase.from("schools").insert(payload)
-      : await supabase.from("schools").update(payload).eq("id", formData.id);
+    if (modalMode === "create" && formData.password.trim().length < 6) {
+      alert("كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل.");
+      setSaving(false);
+      return;
+    }
+
+    let savedSchoolId = formData.id;
+    const saveResult = modalMode === "create"
+      ? await supabase.from("schools").insert(payload).select("id").single()
+      : await supabase.from("schools").update(payload).eq("id", formData.id).select("id").single();
+
+    const { error } = saveResult;
+    if (saveResult.data?.id) savedSchoolId = saveResult.data.id;
 
     if (error) {
       alert(`تعذر الحفظ: ${error.message}`);
     } else {
+      if (formData.password.trim()) {
+        const { error: passwordError } = await supabase.rpc("set_school_password", {
+          input_school_id: savedSchoolId,
+          input_password: formData.password.trim(),
+        });
+
+        if (passwordError) {
+          alert(`تم حفظ المدرسة، لكن تعذر تحديث كلمة المرور: ${passwordError.message}`);
+        } else {
+          setSessionPasswords((current) => ({ ...current, [savedSchoolId]: formData.password.trim() }));
+        }
+      }
       setModalMode(null);
       await fetchData();
     }
@@ -186,8 +208,14 @@ export default function ManageSchoolsPage() {
       return;
     }
 
+    const passwordForMessage = sessionPasswords[school.id] || school.password || "";
+    if (!passwordForMessage) {
+      alert("لأسباب الأمان لا يمكن عرض كلمة المرور المخزنة. عيّن كلمة مرور جديدة للمدرسة ثم أرسل رسالة واتساب.");
+      return;
+    }
+
     const template = settings?.whatsapp_template || emptyWhatsappTemplate;
-    const message = fillTemplate(template, school);
+    const message = fillTemplate(template, school, passwordForMessage);
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
@@ -350,7 +378,7 @@ export default function ManageSchoolsPage() {
                   <input type="email" dir="ltr" value={formData.contact_email} onChange={(event) => setFormData({ ...formData, contact_email: event.target.value })} style={inputStyle()} />
                 </Field>
                 <Field label="كلمة المرور">
-                  <input required dir="ltr" value={formData.password} onChange={(event) => setFormData({ ...formData, password: event.target.value })} style={inputStyle()} />
+                  <input required={modalMode === "create"} minLength={modalMode === "create" ? 6 : undefined} dir="ltr" value={formData.password} onChange={(event) => setFormData({ ...formData, password: event.target.value })} placeholder={modalMode === "create" ? "NTAJE2026" : "اتركه فارغاً دون تغيير"} style={inputStyle()} />
                 </Field>
                 <Field label="الباقة">
                   <select value={formData.subscription_plan} onChange={(event) => setFormData({ ...formData, subscription_plan: event.target.value })} style={inputStyle()}>
@@ -427,14 +455,14 @@ function normalizePhone(value: string) {
   return value.replace(/[^\d]/g, "");
 }
 
-function fillTemplate(template: string, school: SchoolRow) {
+function fillTemplate(template: string, school: SchoolRow, plainPassword = "") {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return template
     .replaceAll("{school_name}", school.name || "")
     .replaceAll("{login_url}", `${origin}/login`)
     .replaceAll("{portal_url}", `${origin}/portal/${school.slug}`)
     .replaceAll("{email}", school.contact_email || "")
-    .replaceAll("{password}", school.password || "");
+    .replaceAll("{password}", plainPassword);
 }
 
 const emptyWhatsappTemplate = "مرحباً {school_name}، تم إنشاء حساب مدرستكم في منصة NTAJE.\nرابط الدخول: {login_url}\nالبريد: {email}\nكلمة المرور: {password}\nبوابة الطلاب: {portal_url}";

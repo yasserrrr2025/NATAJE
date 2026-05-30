@@ -22,10 +22,9 @@ function CheckoutContent() {
 
   useEffect(() => {
     async function initCheckout() {
-      // Get the current school (in real app, get from Auth context)
-      const { data: schools } = await supabase.from('schools').select('id').limit(1);
-      if (schools && schools.length > 0) {
-        setSchoolId(schools[0].id);
+      const currentSchoolId = typeof window !== 'undefined' ? window.localStorage.getItem('school_id') : null;
+      if (currentSchoolId) {
+        setSchoolId(currentSchoolId);
       }
 
       if (planId) {
@@ -74,7 +73,11 @@ function CheckoutContent() {
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!schoolId || !pkg) return;
+    if (!schoolId || !pkg) {
+      alert("يرجى تسجيل الدخول بحساب المدرسة قبل إتمام الدفع.");
+      router.push('/login');
+      return;
+    }
     
     setProcessing(true);
     

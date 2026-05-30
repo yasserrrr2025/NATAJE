@@ -7,6 +7,9 @@ export type SchoolRecord = {
   ministerial_number?: string | null;
   contact_email?: string | null;
   password?: string | null;
+  password_hash?: string | null;
+  password_changed_at?: string | null;
+  auth_user_id?: string | null;
   is_active?: boolean | null;
   is_portal_active?: boolean | null;
   logo_url?: string | null;
@@ -73,6 +76,30 @@ export type PaymentRecord = {
   created_at?: string | null;
   schools?: Pick<SchoolRecord, "name" | "ministerial_number"> | null;
   subscription_packages?: Pick<SubscriptionPackageRecord, "name"> | null;
+};
+
+export type SupportTicketStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "WAITING_SCHOOL"
+  | "RESOLVED"
+  | "CLOSED";
+
+export type SupportTicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
+export type SupportTicketRecord = {
+  id: Id;
+  school_id: Id;
+  subject: string;
+  category: "GENERAL" | "TECHNICAL" | "BILLING" | "DATA" | "CERTIFICATES";
+  priority: SupportTicketPriority;
+  status: SupportTicketStatus;
+  message: string;
+  admin_reply?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  resolved_at?: string | null;
+  schools?: Pick<SchoolRecord, "name" | "ministerial_number" | "contact_email"> | null;
 };
 
 export type PdfTextItem = {

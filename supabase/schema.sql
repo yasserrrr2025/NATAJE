@@ -13,7 +13,10 @@ create table public.schools (
   subscription_end_date timestamp with time zone,
   subscription_plan text default 'TRIAL',
   contact_email text, -- For super admin to know who registered
-  password text,
+  password text, -- Legacy only. New writes use password_hash and keep this null.
+  password_hash text,
+  password_changed_at timestamp with time zone,
+  auth_user_id uuid unique references auth.users(id) on delete set null,
   whatsapp_phone text,
   notes text,
   portal_welcome_message text,
@@ -145,6 +148,37 @@ create table public.subscription_payments (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- 7.2 Support tickets
+create table if not exists public.support_tickets (
+  id uuid primary key default uuid_generate_v4(),
+  school_id uuid references public.schools(id) on delete cascade not null,
+  subject text not null,
+  category text not null default 'GENERAL' check (category in ('GENERAL', 'TECHNICAL', 'BILLING', 'DATA', 'CERTIFICATES')),
+  priority text not null default 'MEDIUM' check (priority in ('LOW', 'MEDIUM', 'HIGH', 'URGENT')),
+  status text not null default 'OPEN' check (status in ('OPEN', 'IN_PROGRESS', 'WAITING_SCHOOL', 'RESOLVED', 'CLOSED')),
+  message text not null,
+  admin_reply text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  resolved_at timestamp with time zone
+);
+
+alter table public.support_tickets enable row level security;
+grant select, insert, update, delete on public.support_tickets to anon, authenticated;
+
+create policy "Demo school can create support tickets" on public.support_tickets
+  for insert to anon, authenticated
+  with check (true);
+
+create policy "Demo users can read support tickets" on public.support_tickets
+  for select to anon, authenticated
+  using (true);
+
+create policy "Demo admins can update support tickets" on public.support_tickets
+  for update to anon, authenticated
+  using (true)
+  with check (true);
+
 -- 7.5 Platform Settings
 create table if not exists public.platform_settings (
   id text primary key default 'primary',
@@ -200,9 +234,231 @@ end;
 $$;
 
 revoke all on table public.platform_admin_credentials from anon, authenticated;
+revoke all on function public.verify_platform_admin_pin(text) from public;
 grant execute on function public.verify_platform_admin_pin(text) to anon, authenticated;
 
+create or replace function public.verify_school_login(input_email text, input_password text)
+returns table (
+  id uuid,
+  name text,
+  slug text,
+  ministerial_number text,
+  is_active boolean,
+  is_portal_active boolean,
+  subscription_end_date timestamp with time zone,
+  subscription_plan text,
+  contact_email text,
+  logo_url text
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  school_row public.schools%rowtype;
+  hash_match boolean := false;
+  legacy_match boolean := false;
+begin
+  select * into school_row
+  from public.schools s
+  where lower(coalesce(s.contact_email, '')) = lower(trim(input_email))
+  limit 1;
+
+  if not found then
+    return;
+  end if;
+
+  hash_match := school_row.password_hash is not null
+    and school_row.password_hash = extensions.crypt(input_password, school_row.password_hash);
+  legacy_match := school_row.password_hash is null
+    and school_row.password is not null
+    and school_row.password = input_password;
+
+  if not hash_match and not legacy_match then
+    return;
+  end if;
+
+  if legacy_match then
+    update public.schools
+    set password_hash = extensions.crypt(input_password, extensions.gen_salt('bf')),
+        password = null,
+        password_changed_at = timezone('utc'::text, now())
+    where public.schools.id = school_row.id
+    returning * into school_row;
+  end if;
+
+  return query select
+    school_row.id,
+    school_row.name,
+    school_row.slug,
+    school_row.ministerial_number,
+    coalesce(school_row.is_active, true),
+    coalesce(school_row.is_portal_active, true),
+    school_row.subscription_end_date,
+    school_row.subscription_plan,
+    school_row.contact_email,
+    school_row.logo_url;
+end;
+$$;
+
+create or replace function public.set_school_password(input_school_id uuid, input_password text)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if input_password is null or length(input_password) < 6 then
+    raise exception 'Password must be at least 6 characters';
+  end if;
+
+  update public.schools
+  set password_hash = extensions.crypt(input_password, extensions.gen_salt('bf')),
+      password = null,
+      password_changed_at = timezone('utc'::text, now())
+  where id = input_school_id;
+end;
+$$;
+
+create or replace function public.request_school_password_reset(input_email text, input_ministerial_number text, input_new_password text)
+returns table (
+  id uuid,
+  name text,
+  is_active boolean
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  school_row public.schools%rowtype;
+begin
+  if input_new_password is null or length(input_new_password) < 6 then
+    raise exception 'Password must be at least 6 characters';
+  end if;
+
+  select * into school_row
+  from public.schools s
+  where lower(coalesce(s.contact_email, '')) = lower(trim(input_email))
+    and s.ministerial_number = trim(input_ministerial_number)
+  limit 1;
+
+  if not found then
+    return;
+  end if;
+
+  update public.schools
+  set password_hash = extensions.crypt(input_new_password, extensions.gen_salt('bf')),
+      password = null,
+      password_changed_at = timezone('utc'::text, now())
+  where public.schools.id = school_row.id
+  returning * into school_row;
+
+  return query select school_row.id, school_row.name, coalesce(school_row.is_active, true);
+end;
+$$;
+
+create or replace function public.create_school_with_password(
+  input_name text,
+  input_ministerial_number text,
+  input_contact_email text,
+  input_password text,
+  input_slug text,
+  input_logo_url text default null
+)
+returns table (id uuid, slug text)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  school_row public.schools%rowtype;
+begin
+  if input_password is null or length(input_password) < 6 then
+    raise exception 'Password must be at least 6 characters';
+  end if;
+
+  insert into public.schools (
+    name,
+    ministerial_number,
+    contact_email,
+    password_hash,
+    password,
+    password_changed_at,
+    slug,
+    logo_url
+  ) values (
+    trim(input_name),
+    trim(input_ministerial_number),
+    lower(trim(input_contact_email)),
+    extensions.crypt(input_password, extensions.gen_salt('bf')),
+    null,
+    timezone('utc'::text, now()),
+    trim(input_slug),
+    input_logo_url
+  ) returning * into school_row;
+
+  return query select school_row.id, school_row.slug;
+end;
+$$;
+
+create or replace function public.link_current_auth_user_to_school(input_school_id uuid, input_profile_name text default 'School Admin')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+begin
+  if current_user_id is null then
+    raise exception 'Authenticated session is required';
+  end if;
+
+  update public.schools
+  set auth_user_id = current_user_id
+  where id = input_school_id
+    and (auth_user_id is null or auth_user_id = current_user_id);
+
+  insert into public.profiles (id, school_id, name, role)
+  values (current_user_id, input_school_id, coalesce(nullif(trim(input_profile_name), ''), 'School Admin'), 'ADMIN')
+  on conflict (id) do update
+  set school_id = excluded.school_id,
+      name = excluded.name,
+      role = excluded.role;
+end;
+$$;
+
+revoke all on function public.verify_school_login(text, text) from public;
+revoke all on function public.set_school_password(uuid, text) from public;
+revoke all on function public.request_school_password_reset(text, text, text) from public;
+revoke all on function public.create_school_with_password(text, text, text, text, text, text) from public;
+revoke all on function public.link_current_auth_user_to_school(uuid, text) from public;
+revoke execute on function public.link_current_auth_user_to_school(uuid, text) from anon;
+grant execute on function public.verify_school_login(text, text) to anon, authenticated;
+grant execute on function public.set_school_password(uuid, text) to anon, authenticated;
+grant execute on function public.request_school_password_reset(text, text, text) to anon, authenticated;
+grant execute on function public.create_school_with_password(text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.link_current_auth_user_to_school(uuid, text) to authenticated;
+
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = timezone('utc'::text, now());
+  return new;
+end;
+$$;
+
+drop trigger if exists support_tickets_touch_updated_at on public.support_tickets;
+create trigger support_tickets_touch_updated_at
+before update on public.support_tickets
+for each row execute function public.touch_updated_at();
+
 create index if not exists idx_profiles_school_id on public.profiles(school_id);
+create index if not exists idx_schools_auth_user_id on public.schools(auth_user_id);
 create index if not exists idx_students_school_id on public.students(school_id);
 create index if not exists idx_certificates_school_id on public.certificates(school_id);
 create index if not exists idx_certificates_student_id on public.certificates(student_id);
@@ -211,6 +467,9 @@ create index if not exists idx_upload_batches_uploaded_by on public.upload_batch
 create index if not exists idx_subscription_payments_school_id on public.subscription_payments(school_id);
 create index if not exists idx_subscription_payments_package_id on public.subscription_payments(package_id);
 create index if not exists idx_subscription_payments_coupon_id on public.subscription_payments(coupon_id);
+create index if not exists idx_support_tickets_school_id on public.support_tickets(school_id);
+create index if not exists idx_support_tickets_status on public.support_tickets(status);
+create index if not exists idx_support_tickets_updated_at on public.support_tickets(updated_at desc);
 
 -- 9. Certificate PDF storage
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

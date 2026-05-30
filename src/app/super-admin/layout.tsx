@@ -4,6 +4,7 @@ import {
   Activity,
   Building2,
   CreditCard,
+  LifeBuoy,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -86,6 +87,10 @@ export default function SuperAdminLayout({
           <Link href="/super-admin/coupons" className="super-hover-bg" style={navItemStyle}>
             <Ticket size={20} style={{ color: "#fbbf24" }} />
             عروض الخصم
+          </Link>
+          <Link href="/super-admin/support" className="super-hover-bg" style={navItemStyle}>
+            <LifeBuoy size={20} style={{ color: "#22d3ee" }} />
+            مركز الدعم
           </Link>
           <Link href="/super-admin/settings" className="super-hover-bg" style={navItemStyle}>
             <Settings size={20} style={{ color: "#94a3b8" }} />
