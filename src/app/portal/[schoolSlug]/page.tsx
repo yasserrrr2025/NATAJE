@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, use, useEffect } from "react";
-import { Search, FileText, Download, Building, Loader2, AlertCircle, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Search, FileText, Download, Building, Loader2, AlertCircle, ShieldCheck, CheckCircle2, Share2, Printer } from "lucide-react";
 import { supabase } from '@/lib/supabase';
+import confetti from 'canvas-confetti';
 
 export default function SchoolPortalPage({ params }: { params: Promise<{ schoolSlug: string }> }) {
   const resolvedParams = use(params);
@@ -54,6 +55,26 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
         .eq('student_id', student.id)
         .eq('status', 'MATCHED');
 
+      if (certificates && certificates.length > 0) {
+        // Track the view! (Analytics)
+        const certIds = certificates.map(c => c.id);
+        const { error: updateError } = await supabase
+          .from('certificates')
+          .update({ viewed_at: new Date().toISOString() })
+          .in('id', certIds)
+          .is('viewed_at', null);
+        
+        if (updateError) console.error("Analytics error:", updateError);
+
+        // Celebrate!
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#38bdf8', '#10b981', '#fcd34d']
+        });
+      }
+
       setResult({
         found: true,
         student,
@@ -65,6 +86,20 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
       setResult({ found: false });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShare = (certUrl: string) => {
+    const text = encodeURIComponent(`أهلاً بك، يمكنك تحميل شهادتي المدرسية من الرابط التالي:\n${certUrl}`);
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  };
+
+  const handlePrint = (certUrl: string) => {
+    const printWindow = window.open(certUrl, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        printWindow.print();
+      };
     }
   };
 
@@ -303,28 +338,48 @@ export default function SchoolPortalPage({ params }: { params: Promise<{ schoolS
                               </p>
                             </div>
                           </div>
-                          <button 
-                            onClick={() => window.open(cert.file_url || '#', '_blank')}
-                            disabled={!cert.file_url}
-                            className="download-btn"
-                            style={{ 
-                              padding: '1.25rem 2.5rem', 
-                              borderRadius: '2rem',
-                              background: 'white',
-                              color: '#0f172a',
-                              border: 'none',
-                              fontWeight: 900,
-                              fontSize: '1.15rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.75rem',
-                              boxShadow: '0 10px 20px rgba(255,255,255,0.1)',
-                              transition: 'all 0.3s ease'
-                            }}
-                          >
-                            <Download size={24} /> تحميل الـ PDF
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <button 
+                              onClick={() => handlePrint(cert.file_url || '#')}
+                              disabled={!cert.file_url}
+                              className="action-btn"
+                              style={{ padding: '0.75rem', borderRadius: '1rem', background: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', transition: 'all 0.2s' }}
+                              title="طباعة الشهادة"
+                            >
+                              <Printer size={20} />
+                            </button>
+                            <button 
+                              onClick={() => handleShare(cert.file_url || '#')}
+                              disabled={!cert.file_url}
+                              className="action-btn"
+                              style={{ padding: '0.75rem', borderRadius: '1rem', background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)', cursor: 'pointer', transition: 'all 0.2s' }}
+                              title="مشاركة عبر الواتساب"
+                            >
+                              <Share2 size={20} />
+                            </button>
+                            <button 
+                              onClick={() => window.open(cert.file_url || '#', '_blank')}
+                              disabled={!cert.file_url}
+                              className="download-btn"
+                              style={{ 
+                                padding: '0.75rem 1.5rem', 
+                                borderRadius: '1rem',
+                                background: 'white',
+                                color: '#0f172a',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '1rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                boxShadow: '0 5px 15px rgba(255,255,255,0.1)',
+                                transition: 'all 0.3s ease'
+                              }}
+                            >
+                              <Download size={20} /> تحميل
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

@@ -118,7 +118,7 @@ export default function CertificateUploadPage() {
     return '';
   };
 
-  const extractTextFast = async (page: any): Promise<{identity: string | null, name: string | null, nationality: string | null} | null> => {
+  const extractTextFast = async (page: any): Promise<{identity: string | null, name: string | null, nationality: string | null, rank_class: number | null, rank_grade: number | null} | null> => {
     try {
       const textContent = await page.getTextContent();
       const rawText = textContent.items.map((item: any) => item.str).join(' ');
@@ -128,14 +128,21 @@ export default function CertificateUploadPage() {
       const name = extractArabicNameFromItems(textContent.items) || text.match(/Student'?s\s*Name\s*:?\s*([^\n:]{4,140}?)(?:\s+Class\s*:|\s+Date\s+of\s+Birth|\s+Nationality|\s+Identity\s+No)/i)?.[1]?.trim() || '';
       const nationality = extractNationality(text);
 
-      if (identity) return { identity, name, nationality };
+      let rank_class = null;
+      let rank_grade = null;
+      const classMatch = text.match(/ترتيب\s*الفصل\s*[:\s]*(\d+)/i);
+      if (classMatch) rank_class = parseInt(classMatch[1], 10);
+      const gradeMatch = text.match(/ترتيب\s*المرحلة\s*[:\s]*(\d+)/i);
+      if (gradeMatch) rank_grade = parseInt(gradeMatch[1], 10);
+
+      if (identity) return { identity, name, nationality, rank_class, rank_grade };
       
       // Ultimate Fallback: Sliding window with Luhn checksum!
       const digitsOnly = text.replace(/[^\d]/g, '');
       for (let k = 0; k <= digitsOnly.length - 10; k++) {
         const sub = digitsOnly.substring(k, k + 10);
         if (isValidSaudiID(sub)) {
-          return { identity: sub, name, nationality };
+          return { identity: sub, name, nationality, rank_class, rank_grade };
         }
       }
       
@@ -242,7 +249,6 @@ export default function CertificateUploadPage() {
         if (uploadError) {
           throw uploadError;
         }
-
         const { data: publicUrlData } = supabase.storage.from('certificates').getPublicUrl(fileName);
         const fileUrl = publicUrlData.publicUrl;
 
@@ -252,7 +258,7 @@ export default function CertificateUploadPage() {
         if (identity) {
           const { data: student } = await supabase
             .from('students')
-            .select('id')
+            .select('id, name')
             .eq('school_id', schoolId)
             .eq('national_id', identity)
             .maybeSingle();
@@ -260,9 +266,18 @@ export default function CertificateUploadPage() {
           if (student) {
             status = 'MATCHED';
             studentId = student.id;
+            matchedCount++;
           } else {
             status = 'MANUAL_REVIEW_NEEDED';
+            unmatchedCount++;
+            setMissingStudents(prev => {
+              if (prev.some(s => s.national_id === identity)) return prev;
+              return [...prev, { national_id: identity, name: extractedData?.name || '', nationality: extractedData?.nationality || '' }];
+            });
           }
+        } else {
+          status = 'MANUAL_REVIEW_NEEDED';
+          unmatchedCount++;
         }
 
         const { error: insertError } = await supabase.from('certificates').insert({
@@ -273,7 +288,9 @@ export default function CertificateUploadPage() {
           file_url: fileUrl,
           page_number: i,
           academic_year: academicYear,
-          term: term
+          term: term,
+          rank_class: extractedData?.rank_class || null,
+          rank_grade: extractedData?.rank_grade || null
         });
 
         if (insertError) {

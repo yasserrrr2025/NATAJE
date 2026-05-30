@@ -104,6 +104,10 @@ export default function AdminLayout({
             <FileText size={20} />
             إدارة الشهادات
           </Link>
+          <Link href="/admin/honors" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius)', transition: 'background 0.2s', fontWeight: 600 }} className="hover-bg">
+            <CheckCircle size={20} />
+            لوحة الشرف (المتفوقين)
+          </Link>
           <Link href="/admin/review" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius)', transition: 'background 0.2s', fontWeight: 600 }} className="hover-bg">
             <CheckCircle size={20} />
             المراجعة والمطابقة
