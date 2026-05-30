@@ -7,7 +7,7 @@ export default function MainHeader() {
   const pathname = usePathname();
   
   // Hide public chrome on isolated app surfaces.
-  if (pathname && (pathname.startsWith("/portal") || pathname.startsWith("/super-admin"))) {
+  if (pathname && (pathname.startsWith("/portal") || pathname.startsWith("/super-admin") || pathname.startsWith("/print"))) {
     return null;
   }
 

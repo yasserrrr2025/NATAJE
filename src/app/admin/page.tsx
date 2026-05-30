@@ -208,7 +208,7 @@ export default function AdminDashboard() {
               <p className="text-muted" style={{ marginTop: "0.25rem" }}>هذا الكشف هو النسخة التي ستظهر بالكليشة عند الطباعة فقط.</p>
             </div>
           </div>
-          <button onClick={() => window.print()} style={primaryButton}>
+          <button onClick={() => window.open("/print/unviewed-certificates", "_blank")} style={primaryButton}>
             <Printer size={18} />
             طباعة الكشف
           </button>

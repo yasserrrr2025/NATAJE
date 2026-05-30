@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 export default function MainFooter() {
   const pathname = usePathname();
   
-  if (pathname && (pathname.startsWith("/portal") || pathname.startsWith("/super-admin"))) {
+  if (pathname && (pathname.startsWith("/portal") || pathname.startsWith("/super-admin") || pathname.startsWith("/print"))) {
     return null;
   }
 

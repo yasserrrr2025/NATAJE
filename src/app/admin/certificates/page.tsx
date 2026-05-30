@@ -273,26 +273,26 @@ export default function CertificatesManagementPage() {
           <p className="text-muted" style={{ fontWeight: 800 }}>جاري تحميل الشهادات...</p>
         </div>
       ) : (
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
+        <section className="certificates-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 310px), 1fr))", gap: "1rem", alignItems: "start" }}>
           {groupedByStudent.map((student) => (
-            <article key={student.key} style={cardStyle}>
-              <header style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "flex-start", marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--secondary)" }}>
-                <div>
-                  <h2 style={{ margin: 0, color: "var(--foreground)", fontSize: "1.12rem", fontWeight: 900 }}>{student.name}</h2>
+            <article key={student.key} className="certificate-card" style={cardStyle}>
+              <header style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "flex-start", marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--secondary)", minWidth: 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <h2 style={{ margin: 0, color: "var(--foreground)", fontSize: "1.05rem", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: 1.55 }}>{student.name}</h2>
                   <p className="text-muted" style={{ marginTop: "0.35rem", fontWeight: 800, direction: "ltr", textAlign: "right" }}>{student.nationalId}</p>
                   <p className="text-muted" style={{ marginTop: "0.25rem" }}>{student.grade} / {student.classroom}</p>
                 </div>
-                <span style={badge("#2563eb")}>{student.certs.length} شهادة</span>
+                <span style={{ ...badge("#2563eb"), flex: "0 0 auto" }}>{student.certs.length} شهادة</span>
               </header>
 
               <div style={{ display: "grid", gap: "0.75rem" }}>
                 {student.certs.map((cert, index) => (
-                  <div key={cert.id} style={certificateRowStyle}>
+                  <div key={cert.id} className="certificate-row" style={certificateRowStyle}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
                       <span style={{ width: 38, height: 38, borderRadius: "0.8rem", display: "grid", placeItems: "center", background: statusColor(cert.status) + "1A", color: statusColor(cert.status), flex: "0 0 auto" }}>
                         {cert.status === "MATCHED" ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                       </span>
-                      <div style={{ minWidth: 0 }}>
+                      <div style={{ minWidth: 0, maxWidth: "100%" }}>
                         <strong style={{ display: "block", color: "var(--foreground)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {cert.term || `شهادة ${index + 1}`}
                         </strong>
@@ -302,8 +302,8 @@ export default function CertificatesManagementPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", justifyContent: "space-between", marginTop: "0.75rem", flexWrap: "wrap" }}>
-                      <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", justifyContent: "space-between", marginTop: "0.75rem", flexWrap: "wrap", minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", minWidth: 0 }}>
                         <span style={badge(statusColor(cert.status))}>{statusLabel(cert.status)}</span>
                         <span style={badge(cert.viewed_at ? "#10b981" : "#64748b")}>
                           {cert.viewed_at ? "مستلمة" : "لم تستلم"}
@@ -352,6 +352,24 @@ export default function CertificatesManagementPage() {
           .certificate-filter-grid {
             grid-template-columns: 1fr !important;
           }
+        }
+
+        .certificates-grid,
+        .certificate-card,
+        .certificate-row {
+          min-width: 0;
+        }
+
+        .certificate-card {
+          overflow: hidden;
+          contain: layout paint;
+        }
+
+        .certificate-row {
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
         }
       `}</style>
     </div>
@@ -476,13 +494,19 @@ const cardStyle: React.CSSProperties = {
   padding: "1.1rem",
   display: "flex",
   flexDirection: "column",
+  minWidth: 0,
+  overflow: "hidden",
 };
 
 const certificateRowStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.35)",
+  background: "rgba(15, 23, 42, 0.18)",
   border: "1px solid var(--secondary)",
   borderRadius: "0.95rem",
   padding: "0.9rem",
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  overflow: "hidden",
 };
 
 const inputStyle: React.CSSProperties = {
