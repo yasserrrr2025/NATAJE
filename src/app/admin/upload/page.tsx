@@ -40,36 +40,51 @@ export default function CertificateUploadPage() {
     return sum % 10 === 0;
   };
 
+  const compactValue = (value: string) => {
+    return value.replace(/[^\p{L}\p{N}]/gu, '').trim();
+  };
+
+  const extractIdentityFromText = (text: string): string | null => {
+    const patterns = [
+        /Identity\s*No\.?\s*([A-Z0-9\/_\- ]{6,})/i,
+        /Passport\s*No\.?\s*([A-Z0-9\/_\- ]{6,})/i,
+        /رقم\s*الهوية\s*([A-Z0-9\/_\- ]{6,})/i,
+        /رقم\s*جواز\s*السفر\s*([A-Z0-9\/_\- ]{6,})/i
+    ];
+    for (const pattern of patterns) {
+        const m = text.match(pattern);
+        if (m) {
+            const value = compactValue(m[1]);
+            if (value) return value;
+        }
+    }
+    const candidates = text.match(/[A-Z]?\d[\d\/_\- ]{5,}[A-Z0-9]?/gi) || [];
+    for (const c of candidates) {
+        const value = compactValue(c);
+        if (/^(?:\d{8,20}|[A-Z]\d{6,20})$/i.test(value)) return value;
+    }
+    return null;
+  };
+
   const extractTextFast = async (page: any): Promise<string | null> => {
     try {
       const textContent = await page.getTextContent();
-      let text = textContent.items.map((item: any) => item.str).join(" ");
+      const rawText = textContent.items.map((item: any) => item.str).join(' ');
+      const text = rawText.replace(/[\u200E\u200F\u202A-\u202E]/g, ' ').replace(/\s+/g, ' ').trim();
       
-      // Convert Arabic-Indic numerals to standard English digits
-      text = text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, (d: string) => String(d.charCodeAt(0) - 1632));
+      const identity = extractIdentityFromText(text);
+      if (identity) return identity;
       
-      // 1. Try finding a clean 10-digit number
-      let match = text.match(/\b\d{10}\b/);
-      
-      // 2. Try removing all spaces 
-      if (!match) {
-        const noSpaceText = text.replace(/\s+/g, '');
-        match = noSpaceText.match(/\b(1|2)\d{9}\b/);
-      }
-      
-      // 3. Ultimate Fallback: Sliding window with Luhn checksum!
-      // This handles cases where pdfjs scrambles the text with other numbers.
-      if (!match) {
-        const digitsOnly = text.replace(/[^\d]/g, '');
-        for (let k = 0; k <= digitsOnly.length - 10; k++) {
-          const sub = digitsOnly.substring(k, k + 10);
-          if (isValidSaudiID(sub)) {
-            return sub;
-          }
+      // Ultimate Fallback: Sliding window with Luhn checksum!
+      const digitsOnly = text.replace(/[^\d]/g, '');
+      for (let k = 0; k <= digitsOnly.length - 10; k++) {
+        const sub = digitsOnly.substring(k, k + 10);
+        if (isValidSaudiID(sub)) {
+          return sub;
         }
       }
       
-      return match ? match[0] : null;
+      return null;
     } catch {
       return null;
     }
