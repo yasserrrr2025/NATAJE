@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Loader2, Eye, EyeOff, AlertTriangle, Users } from "lucide-react";
 
+import { Printer } from "lucide-react";
+
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
+  const [schoolName, setSchoolName] = useState<string>("(اسم المدرسة)");
   const [stats, setStats] = useState({
     totalStudents: 0,
     matchedCertificates: 0,
@@ -20,8 +23,13 @@ export default function AdminDashboard() {
         let schoolId = localStorage.getItem('school_id');
         
         if (!schoolId) {
-          const { data: schools } = await supabase.from('schools').select('id').limit(1);
+          const { data: schools } = await supabase.from('schools').select('id, name').limit(1);
           schoolId = schools?.[0]?.id;
+          if (schools?.[0]?.name) setSchoolName(schools[0].name);
+        } else {
+          // Fetch school name
+          const { data: schoolData } = await supabase.from('schools').select('name').eq('id', schoolId).single();
+          if (schoolData?.name) setSchoolName(schoolData.name);
         }
 
         if (!schoolId) {
@@ -101,15 +109,43 @@ export default function AdminDashboard() {
   }
 
   const viewPercentage = stats.matchedCertificates > 0 ? Math.round((stats.viewedCertificates / stats.matchedCertificates) * 100) : 0;
+  const currentDate = new Date().toLocaleDateString('ar-SA');
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
-    <div className="animate-fade-in space-y-8">
-      <div>
+    <div className="animate-fade-in space-y-8 print:space-y-0 print:m-0 print:p-0">
+      
+      {/* Printable Header - ONLY visible during print */}
+      <div className="hidden print:block w-full mb-8">
+        <div className="flex justify-between items-center w-full mb-4">
+          <div className="text-right flex-1">
+            <h3 className="font-bold text-lg">المملكة العربية السعودية</h3>
+            <h3 className="font-bold text-lg">وزارة التعليم</h3>
+            <h3 className="font-bold text-lg">{schoolName}</h3>
+          </div>
+          <div className="flex-1 flex justify-center">
+            {/* Placeholder for Logo, using a generic emblem or text for now */}
+            <div className="w-24 h-24 border-2 border-black rounded-full flex items-center justify-center font-bold">
+              الشعار
+            </div>
+          </div>
+          <div className="text-left flex-1">
+            <h3 className="font-bold text-lg">التاريخ: {currentDate}</h3>
+          </div>
+        </div>
+        <hr className="border-t-2 border-black my-4" />
+        <h2 className="text-2xl font-bold text-center my-6">قائمة الطلاب الذين لم يستلموا شهاداتهم</h2>
+      </div>
+
+      <div className="print:hidden">
         <h1 className="heading-2">نظرة عامة والتحليلات</h1>
         <p className="text-muted mt-2">إحصائيات شاملة لحالة الشهادات ومتابعة أولياء الأمور.</p>
       </div>
       
-      <div className="grid-4">
+      <div className="grid-4 print:hidden">
         <div className="glass-card" style={{ padding: '1.5rem', borderBottom: '4px solid var(--primary)' }}>
           <div className="flex items-center gap-3 mb-2">
             <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '0.5rem', borderRadius: '0.5rem', color: 'var(--primary)' }}><Users size={20} /></div>
@@ -159,39 +195,50 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="glass-card p-6 mt-8">
-        <div className="flex items-center gap-4 mb-6 pb-4 border-b border-border">
-          <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '1rem', color: 'var(--destructive)' }}>
-            <EyeOff size={24} />
+      <div className="glass-card p-6 mt-8 print:shadow-none print:border-none print:p-0 print:m-0 print:bg-transparent">
+        <div className="flex justify-between items-center mb-6 pb-4 border-b border-border print:hidden">
+          <div className="flex items-center gap-4">
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '1rem', color: 'var(--destructive)' }}>
+              <EyeOff size={24} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.25rem' }}>طلاب لم يستلموا شهاداتهم ({unviewedList.length})</h2>
+              <p className="text-muted text-sm">قائمة بالطلاب الذين أُصدرت لهم شهادات ولكن لم يقم ولي الأمر بالاستعلام عنها حتى الآن.</p>
+            </div>
           </div>
-          <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.25rem' }}>طلاب لم يستلموا شهاداتهم ({unviewedList.length})</h2>
-            <p className="text-muted text-sm">قائمة بالطلاب الذين أُصدرت لهم شهادات ولكن لم يقم ولي الأمر بالاستعلام عنها حتى الآن.</p>
-          </div>
+          <button 
+            onClick={handlePrint}
+            className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg font-bold transition-colors"
+          >
+            <Printer size={18} />
+            طباعة الكشف
+          </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-right border-collapse">
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm text-right border-collapse print:border print:border-black">
             <thead>
-              <tr className="border-b border-border bg-secondary/50">
-                <th className="p-4 font-bold rounded-tr-lg">اسم الطالب</th>
-                <th className="p-4 font-bold">رقم الهوية</th>
-                <th className="p-4 font-bold">الصف والفصل</th>
+              <tr className="border-b border-border bg-secondary/50 print:bg-gray-100 print:border-black">
+                <th className="p-4 font-bold rounded-tr-lg print:border print:border-black print:rounded-none">م</th>
+                <th className="p-4 font-bold print:border print:border-black">اسم الطالب</th>
+                <th className="p-4 font-bold print:border print:border-black">رقم الهوية</th>
+                <th className="p-4 font-bold rounded-tl-lg print:border print:border-black print:rounded-none">الصف والفصل</th>
               </tr>
             </thead>
             <tbody>
-              {unviewedList.map(cert => (
-                <tr key={cert.id} className="border-b border-border hover:bg-secondary/30 transition-colors">
-                  <td className="p-4 font-medium">{cert.students?.name}</td>
-                  <td className="p-4 text-muted">{cert.students?.national_id}</td>
-                  <td className="p-4 text-muted">
+              {unviewedList.map((cert, index) => (
+                <tr key={cert.id} className="border-b border-border hover:bg-secondary/30 transition-colors print:border-black print:text-black">
+                  <td className="p-4 print:border print:border-black font-bold">{index + 1}</td>
+                  <td className="p-4 font-medium print:border print:border-black">{cert.students?.name}</td>
+                  <td className="p-4 text-muted print:text-black print:border print:border-black">{cert.students?.national_id}</td>
+                  <td className="p-4 text-muted print:text-black print:border print:border-black">
                     {cert.students?.grade_level || '-'} / {cert.students?.classroom || '-'}
                   </td>
                 </tr>
               ))}
               {unviewedList.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="p-8 text-center text-muted">
+                  <td colSpan={4} className="p-8 text-center text-muted print:border print:border-black">
                     عمل ممتاز! جميع الطلاب استلموا شهاداتهم.
                   </td>
                 </tr>

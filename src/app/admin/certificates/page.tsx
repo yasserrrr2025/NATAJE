@@ -113,6 +113,21 @@ export default function CertificatesManagementPage() {
     return name.includes(term) || id.includes(term);
   });
 
+  const groupedByStudent = filteredCertificates.reduce((acc, cert) => {
+    const studentId = cert.students?.national_id || cert.extracted_national_id || cert.id;
+    if (!acc[studentId]) {
+      acc[studentId] = {
+        name: cert.students?.name || 'غير مسجل بالبيانات',
+        national_id: cert.students?.national_id || cert.extracted_national_id,
+        grade: cert.students?.grade_level || '-',
+        classroom: cert.students?.classroom || '-',
+        certs: []
+      };
+    }
+    acc[studentId].certs.push(cert);
+    return acc;
+  }, {} as Record<string, any>);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center mb-8">
@@ -122,111 +137,101 @@ export default function CertificatesManagementPage() {
         </div>
       </div>
 
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
+      <div className="glass-card p-6 mb-8">
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-muted" size={20} />
             <input 
               type="text" 
               placeholder="ابحث باسم الطالب أو رقم الهوية..." 
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-4 pr-10 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              className="w-full pl-4 pr-10 py-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             />
           </div>
-          <div className="text-sm font-medium text-muted bg-secondary px-4 py-2 rounded-lg">
-            العدد الإجمالي: {filteredCertificates.length}
+          <div className="text-sm font-medium text-muted bg-secondary px-6 py-3 rounded-xl whitespace-nowrap">
+            الطلاب: {Object.keys(groupedByStudent).length} | الشهادات: {filteredCertificates.length}
           </div>
         </div>
-
-        {loading ? (
-          <div className="flex-center py-12">
-            <Loader2 className="animate-spin text-primary" size={40} />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-right border-collapse">
-              <thead>
-                <tr className="border-b border-border bg-secondary/50">
-                  <th className="p-4 font-bold rounded-tr-lg">الطالب</th>
-                  <th className="p-4 font-bold">رقم الهوية</th>
-                  <th className="p-4 font-bold">الفصل/المرحلة</th>
-                  <th className="p-4 font-bold">الحالة</th>
-                  <th className="p-4 font-bold text-center rounded-tl-lg">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCertificates.map((cert) => (
-                  <tr key={cert.id} className="border-b border-border hover:bg-secondary/30 transition-colors">
-                    <td className="p-4 font-medium">
-                      {cert.students?.name || <span className="text-muted italic">غير مسجل بالبيانات</span>}
-                    </td>
-                    <td className="p-4">
-                      {cert.students?.national_id || cert.extracted_national_id}
-                    </td>
-                    <td className="p-4 text-muted">
-                      {cert.students?.grade_level || '-'} / {cert.students?.classroom || '-'}
-                    </td>
-                    <td className="p-4">
-                      {cert.status === 'MATCHED' ? (
-                        <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full text-xs font-bold w-fit">
-                          <CheckCircle size={14} /> مطابق
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2 py-1 rounded-full text-xs font-bold w-fit">
-                          <AlertTriangle size={14} /> يحتاج مراجعة
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {cert.file_url && (
-                          <a 
-                            href={cert.file_url} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                            title="معاينة الشهادة"
-                          >
-                            <Eye size={18} />
-                          </a>
-                        )}
-                        
-                        <label className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="تحديث ملف الشهادة">
-                          {uploadingFor === cert.id ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
-                          <input 
-                            type="file" 
-                            accept=".pdf" 
-                            className="hidden" 
-                            onChange={(e) => handleUploadSingle(e, cert.student_id, cert.id)}
-                            disabled={uploadingFor === cert.id}
-                          />
-                        </label>
-
-                        <button 
-                          onClick={() => handleDelete(cert.id, cert.file_url)}
-                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                          title="حذف الشهادة"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                
-                {filteredCertificates.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-muted">
-                      لا توجد شهادات مطابقة للبحث
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {loading ? (
+        <div className="flex-center py-12">
+          <Loader2 className="animate-spin text-primary" size={40} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Object.values(groupedByStudent).map((student: any, i) => (
+            <div key={i} className="glass-card flex flex-col p-6" style={{ padding: '1.5rem' }}>
+              <div className="border-b border-border pb-4 mb-4 flex items-start justify-between">
+                <div>
+                  <h3 className="font-bold text-lg mb-1" style={{ color: 'var(--primary)' }}>{student.name}</h3>
+                  <div className="text-sm text-muted space-y-1">
+                    <p>هوية: {student.national_id}</p>
+                    <p>الصف: {student.grade} / الفصل: {student.classroom}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex-1 space-y-3">
+                <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                  <FileText size={16} className="text-muted" />
+                  الشهادات المرفوعة ({student.certs.length})
+                </h4>
+                
+                {student.certs.map((cert: any, idx: number) => (
+                  <div key={cert.id} className="bg-background/50 p-3 rounded-xl flex items-center justify-between border border-border hover:border-primary/30 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${cert.status === 'MATCHED' ? 'bg-emerald-500' : 'bg-amber-500'}`} title={cert.status === 'MATCHED' ? 'مطابق' : 'يحتاج مراجعة'} />
+                      <span className="text-sm font-bold">شهادة {idx + 1}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1 bg-card p-1 rounded-lg border border-border">
+                      {cert.file_url && (
+                        <a 
+                          href={cert.file_url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors" 
+                          title="معاينة الشهادة"
+                        >
+                          <Eye size={16} />
+                        </a>
+                      )}
+                      
+                      <label className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer" title="تحديث الشهادة">
+                        {uploadingFor === cert.id ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                        <input 
+                          type="file" 
+                          accept=".pdf" 
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleUploadSingle(e, cert.student_id, cert.id)}
+                          disabled={uploadingFor === cert.id}
+                        />
+                      </label>
+
+                      <button 
+                        onClick={() => handleDelete(cert.id, cert.file_url)}
+                        className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                        title="حذف الشهادة"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {Object.keys(groupedByStudent).length === 0 && (
+            <div className="col-span-full glass-card flex-center flex-col py-16 text-center border-dashed border-2">
+              <FileText size={48} className="text-muted mb-4 opacity-50" />
+              <p className="text-xl font-bold text-muted">لا توجد شهادات مطابقة للبحث</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
