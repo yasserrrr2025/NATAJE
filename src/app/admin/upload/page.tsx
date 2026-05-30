@@ -157,23 +157,25 @@ export default function CertificateUploadPage() {
       const processPage = async (i: number) => {
         const page = await pdfJsDoc.getPage(i);
         
-        let nationalId = await extractTextFast(page);
+        let identity = await extractTextFast(page);
 
-        if (!nationalId) {
+        if (!identity) {
           const worker = await getOcrWorker();
-          nationalId = await extractTextOCR(page, worker);
+          identity = await extractTextOCR(page, worker);
         }
 
-        // Preserve all document-level objects (forms, fonts, images) by loading the original and deleting other pages
-        // Create a fresh copy of the array buffer for each iteration to avoid the "Cannot perform Construct on a detached ArrayBuffer" error
-        const subPdf = await PDFDocument.load(pdfBytes.slice(0));
-        const pageCount = subPdf.getPageCount();
-        // Remove from end to start to avoid index shifting
-        for (let k = pageCount - 1; k >= 0; k--) {
-          if (k !== i - 1) {
-            subPdf.removePage(k);
-          }
+        // Create a new PDF and copy only the specific page instantly
+        const subPdf = await PDFDocument.create();
+        const [copiedPage] = await subPdf.copyPages(pdfLibDoc, [i - 1]);
+        subPdf.addPage(copiedPage);
+
+        // Preserve the background forms from the Noor certificate catalog
+        const { PDFName } = await import('pdf-lib');
+        const acroForm = pdfLibDoc.catalog.get(PDFName.of('AcroForm'));
+        if (acroForm) {
+          subPdf.catalog.set(PDFName.of('AcroForm'), acroForm);
         }
+        
         const subPdfBytes = await subPdf.save();
 
         const fileName = `${schoolId}/${crypto.randomUUID()}.pdf`;
@@ -191,12 +193,12 @@ export default function CertificateUploadPage() {
         let status = 'UNMATCHED';
         let studentId = null;
 
-        if (nationalId) {
+        if (identity) {
           const { data: student } = await supabase
             .from('students')
             .select('id')
             .eq('school_id', schoolId)
-            .eq('national_id', nationalId)
+            .eq('national_id', identity)
             .maybeSingle();
 
           if (student) {
@@ -210,7 +212,7 @@ export default function CertificateUploadPage() {
         const { error: insertError } = await supabase.from('certificates').insert({
           school_id: schoolId,
           student_id: studentId,
-          extracted_national_id: nationalId || null,
+          extracted_national_id: identity || null,
           status: status,
           file_url: fileUrl,
           page_number: i,
@@ -225,11 +227,11 @@ export default function CertificateUploadPage() {
         return { status, studentId };
       };
 
-      const batchSize = 1;
+      const batchSize = 10;
       let processed = 0;
 
       for (let i = 1; i <= totalPages; i += batchSize) {
-        setStatusText(`جاري تحليل وتدقيق الصفحة ${i} من ${totalPages}...`);
+        setStatusText(`جاري التحليل والرفع (دفعة ${i} إلى ${Math.min(i + batchSize - 1, totalPages)}) من ${totalPages}...`);
         
         const promises = [];
         for (let j = 0; j < batchSize && (i + j) <= totalPages; j++) {
