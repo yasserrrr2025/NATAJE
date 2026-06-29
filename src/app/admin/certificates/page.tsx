@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentSchoolId } from "@/lib/school-session";
+import { extractIdentityFromPdfItems } from "@/lib/certificate-identity";
 
 type CertificateRow = {
   id: string;
@@ -495,7 +496,10 @@ async function extractIdentityFromPdfUrl(fileUrl: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  return extractIdentityFromText(text);
+  const legacyIdentity = extractIdentityFromText(text);
+  const completionIdentity = extractIdentityFromPdfItems(textContent.items, text);
+  if (legacyIdentity && !isWeakLegacyIdentity(legacyIdentity)) return legacyIdentity;
+  return completionIdentity || legacyIdentity;
 }
 
 function extractIdentityFromText(text: string) {
@@ -543,6 +547,12 @@ function isValidSaudiId(id: string) {
     sum += digit;
   }
   return sum % 10 === 0;
+}
+
+function isWeakLegacyIdentity(value: string | null) {
+  if (!value) return true;
+  const compacted = value.replace(/[^\p{L}\p{N}]/gu, "");
+  return /^1[34]\d{2}1[34]\d{2}$/.test(compacted) || /^\d{1,9}$/.test(compacted);
 }
 
 function normalizeStudent(students: CertificateRow["students"]) {

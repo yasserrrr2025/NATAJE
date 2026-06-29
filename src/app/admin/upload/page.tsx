@@ -4,6 +4,10 @@ import { useState } from "react";
 import { FileUp, FileText, Play, CheckCircle, AlertCircle, Loader2, Sparkles, AlertTriangle, Users } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { getCurrentSchoolId } from "@/lib/school-session";
+import {
+  extractIdentityFromPdfItems,
+  extractIdentityFromText as extractIdentityFromTextStrict,
+} from "@/lib/certificate-identity";
 
 export default function CertificateUploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -68,6 +72,19 @@ export default function CertificateUploadPage() {
     return null;
   };
 
+  const isWeakLegacyIdentity = (value: string | null) => {
+    if (!value) return true;
+    const compacted = compactValue(value);
+    return /^1[34]\d{2}1[34]\d{2}$/.test(compacted) || /^\d{1,9}$/.test(compacted);
+  };
+
+  const extractIdentityFromPage = (items: any[], text: string) => {
+    const legacyIdentity = extractIdentityFromText(text);
+    const completionIdentity = extractIdentityFromPdfItems(items, text);
+    if (legacyIdentity && !isWeakLegacyIdentity(legacyIdentity)) return legacyIdentity;
+    return completionIdentity || legacyIdentity;
+  };
+
   const nationalityToArabic = (value = '') => {
     const v = value.trim().toLowerCase();
     const map: Record<string, string> = {
@@ -124,7 +141,7 @@ export default function CertificateUploadPage() {
       const rawText = textContent.items.map((item: any) => item.str).join(' ');
       const text = rawText.replace(/[\u200E\u200F\u202A-\u202E]/g, ' ').replace(/\s+/g, ' ').trim();
       
-      const identity = extractIdentityFromText(text);
+      const identity = extractIdentityFromPage(textContent.items, text);
       const name = extractArabicNameFromItems(textContent.items) || text.match(/Student'?s\s*Name\s*:?\s*([^\n:]{4,140}?)(?:\s+Class\s*:|\s+Date\s+of\s+Birth|\s+Nationality|\s+Identity\s+No)/i)?.[1]?.trim() || '';
       const nationality = extractNationality(text);
 
@@ -167,8 +184,7 @@ export default function CertificateUploadPage() {
       await page.render({ canvasContext: context, viewport: viewport }).promise;
       
       const { data: { text } } = await worker.recognize(canvas);
-      const match = text.match(/\b\d{10}(?:-\d+)?\b/);
-      return match ? match[0] : null;
+      return extractIdentityFromTextStrict(text) || extractIdentityFromText(text);
     } catch {
       return null;
     }
@@ -266,18 +282,11 @@ export default function CertificateUploadPage() {
           if (student) {
             status = 'MATCHED';
             studentId = student.id;
-            matchedCount++;
           } else {
             status = 'MANUAL_REVIEW_NEEDED';
-            unmatchedCount++;
-            setMissingStudents(prev => {
-              if (prev.some(s => s.national_id === identity)) return prev;
-              return [...prev, { national_id: identity, name: extractedData?.name || '', nationality: extractedData?.nationality || '' }];
-            });
           }
         } else {
           status = 'MANUAL_REVIEW_NEEDED';
-          unmatchedCount++;
         }
 
         const { error: insertError } = await supabase.from('certificates').insert({

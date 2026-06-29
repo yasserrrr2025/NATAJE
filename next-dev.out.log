@@ -1,0 +1,15 @@
+
+> ntaje@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.8.120:3000
+- Environments: .env.local
+✓ Ready in 4.7s
+
+○ Compiling /admin/certificates ...
+ GET /admin/certificates 200 in 5.7s (next.js: 5.0s, application-code: 616ms)
+ GET /admin/certificates 200 in 127ms (next.js: 9ms, application-code: 118ms)
+○ Compiling /admin/upload ...
+ GET /admin/upload 200 in 5.2s (next.js: 4.9s, application-code: 245ms)
