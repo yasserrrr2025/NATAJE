@@ -13,3 +13,6 @@
  GET /admin/certificates 200 in 127ms (next.js: 9ms, application-code: 118ms)
 ○ Compiling /admin/upload ...
  GET /admin/upload 200 in 5.2s (next.js: 4.9s, application-code: 245ms)
+ GET /admin/review 200 in 1488ms (next.js: 1345ms, application-code: 143ms)
+ GET /admin/review 200 in 130ms (next.js: 11ms, application-code: 119ms)
+ GET /admin/review 200 in 582ms (next.js: 215ms, application-code: 367ms)
